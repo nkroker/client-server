@@ -106,8 +106,10 @@
           event.preventDefault();
 
           var formValues = $(this).serialize();
+          $(this).trigger("reset");
 
           $.post("http://localhost:3000/articles", formValues, function (data) {
+            load_articles();
             console.log(data);
           });
         });
