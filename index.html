@@ -1,39 +1,43 @@
 <html>
-<head>
-  <title>
-    Client Page
-  </title>
+  <head>
+    <title>
+      Client Page
+    </title>
 
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
 
-  <style>
-    .my-custom-scrollbar {
-      position: relative;
-      height: 500px;
-      overflow: auto;
-    }
+    <style>
+      .my-custom-scrollbar {
+        position: relative;
+        height: 500px;
+        overflow: auto;
+      }
 
-    .table-wrapper-scroll-y {
-      display: block;
-    }
+      .table-wrapper-scroll-y {
+        display: block;
+      }
 
-    .tableFixHead          {
-      overflow-y: auto;
-      padding: 50px;
-      padding-top: 0;
-    }
-    .tableFixHead thead th { position: sticky; top: 0; }
+      .tableFixHead          {
+        overflow-y: auto;
+        padding: 50px;
+        padding-top: 0;
+      }
+      .tableFixHead thead th { position: sticky; top: 0; }
 
-    table  { border-collapse: collapse; width: 100%; }
-    th, td { padding: 8px 16px; }
-    th     { background:#eee; }
-  </style>
+      table  { border-collapse: collapse; width: 100%; }
+      th, td { padding: 8px 16px; }
+      th     { background:#eee; }
 
-</head>
+      .action-panel {
+        width: 5%;
+      }
+    </style>
+
+  </head>
   <body>
     <br>
     <h1>
@@ -49,6 +53,7 @@
             <th scope="col">#</th>
             <th scope="col">Title</th>
             <th scope="col">Description</th>
+            <th scope="col" class="action-panel">Actions</th>
           </tr>
         </thead>
         <tbody id="content-space">
@@ -61,10 +66,11 @@
     <br>
 
     <div class="tableFixHead">
-      <h2>
+      <h2 id="form-header">
         Add Article
       </h2>
-      <form>
+      <form class="common_form">
+        <div id="editing_space"></div>
         <div class="form-group">
           <label for="exampleFormControlInput1">Title</label>
           <input type="text" name="article[title]" class="form-control" id="exampleFormControlInput1" placeholder="My Gorgeous Title">
@@ -78,41 +84,105 @@
       </form>
     </div>
 
-
     <script>
       $(document).ready(function(params) {
+        // Function for table load
         function load_articles() {
-          $.ajax({
-            url: "http://localhost:3000",
-            type: 'GET',
-            success: function (data) {
-              $("#content-space").html("");
-              data.forEach(function (article, index) {
-                $("#content-space").append(`
+
+          var success_fun = function (data) {
+            $("#content-space").html("");
+            data.forEach(function (article, index) {
+              $("#content-space").append(`
                   <tr>
                     <th scope="row">${index + 1}</th>
                     <td>${article.title}</td>
                     <td>${article.description}</td>
+                    <td>
+                      <div class="btn-group" role="group" aria-label="Basic example">
+                        <button type="button" class="btn btn-primary btn-sm edit-article" data-id=${article.id}>Edit</button>
+                        <button type="button" class="btn btn-secondary btn-sm delete-article" data-id=${article.id}>Delete</button>
+                      </div>
+                    </td>
                   </tr>
                 `);
-              });
-            }
-          });
+            });
+          }
+
+          make_request('GET', "http://localhost:3000", {}, success_fun )
         }
 
-        load_articles();
+        // Edit User pre-processing
+        $(document).on("click", ".edit-article", function(e) {
+          e.preventDefault();
+          article_id = this.dataset.id;
+          url = `http://localhost:3000/articles/${article_id}`
 
+          success_fun = function(data) {
+            url = `http://localhost:3000/articles/${data.id}`
+            $("#editing_space").append(`<input type="hidden" id="#hidden_id_field" name="article[id]" value="${data.id}">`);
+            $("#exampleFormControlInput1").val(data.title);
+            $("#exampleFormControlTextarea1").val(data.description);
+
+
+            $(".common_form").attr("method_type", "PUT");
+            $(".common_form").attr("url", url);
+            $("#form-header").html("Edit Article");
+          }
+
+          make_request('GET', url, {}, success_fun)
+        });
+
+        // Function for deleting articles
+        $(document).on("click", ".delete-article", function (e) {
+          e.preventDefault();
+          article_id = this.dataset.id;
+          url = `http://localhost:3000/articles/${article_id}`;
+
+          success_fun = function () {
+            console.log("data DELETED");
+            load_articles();
+          }
+
+          make_request('DELETE', url, {}, success_fun);
+        })
+
+        // For submitting the common form
         $("form").on("submit", function (event) {
           event.preventDefault();
 
           var formValues = $(this).serialize();
+          var method_type = $(".common_form").attr("method_type");
+          var url = $(".common_form").attr("url");
+          $("#editing_space").empty();
+
+          if (!(url && method_type)) {
+            method_type = 'POST';
+            url = "http://localhost:3000/articles";
+          }
+
+          $("#form-header").html("Add Article");
           $(this).trigger("reset");
 
-          $.post("http://localhost:3000/articles", formValues, function (data) {
+          success_fun = function (data) {
             load_articles();
             console.log(data);
-          });
+          }
+
+          make_request(method_type, url, formValues, success_fun);
         });
+
+        // Commmon function for making ajax request
+        function make_request(method_type, url, data, success_fun) {
+          $.ajax({
+            type: method_type,
+            url: url,
+            data: data,
+            success: success_fun
+          });
+        }
+
+        load_articles();
+        // First time page load
       });
     </script>
   </body>
